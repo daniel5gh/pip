@@ -228,6 +228,70 @@ class LocalFSAdapter(BaseAdapter):
         pass
 
 
+class SFTPAdapter(BaseAdapter):
+    def send(self, request, stream=None, timeout=None, verify=None, cert=None,
+            proxies=None):
+
+        parts = urllib_parse.urlparse(request.url)
+
+        if ':' in parts.netloc:
+            host, port = parts.netloc.split(':')
+            port = int(port)
+        else:
+            host = parts.netloc
+            port = 22
+
+        path = parts.path
+
+        import paramiko, stat
+        paramiko.util.log_to_file('/tmp/paramiko.log')
+
+        transport = paramiko.Transport((host, port))
+
+        if 'authorization' not in request.headers:
+            raise RuntimeError("Please specify username@host")
+
+        # requests has already prepared the http auth, so lets get it
+        # from the HTTP Basic Authentication header
+        auth = request.headers['authorization'].split()
+        assert auth[0] == 'Basic'
+        username, password = auth[1].decode('base64').split(':')
+
+        transport.connect(username=username, password=password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+
+        resp = Response()
+        resp.status_code = 200
+        resp.url = request.url
+
+        try:
+            stats = sftp.stat(path)
+        except OSError as exc:
+            resp.status_code = 404
+            resp.raw = exc
+        else:
+            if stat.S_ISDIR(stats.st_mode):
+                resp.status_code = 404
+                resp.raw = '`{}` is a directory'.format(path)
+                return resp
+
+            modified = email.utils.formatdate(stats.st_mtime, usegmt=True)
+            # todo can we use mimetypes as in file: adapter
+            content_type = "text/plain"
+            resp.headers = CaseInsensitiveDict({
+                "Content-Type": content_type,
+                "Content-Length": stats.st_size,
+                "Last-Modified": modified,
+            })
+
+            resp.raw = sftp.file(path)
+            resp.close = resp.raw.close
+            return resp
+
+    def close(self):
+        pass
+
+
 class SafeFileCache(FileCache):
     """
     A file based cache which is safe to use even when the target directory may
@@ -359,6 +423,9 @@ class PipSession(requests.Session):
 
         # Enable file:// urls
         self.mount("file://", LocalFSAdapter())
+
+        # Enable sftp:// urls
+        self.mount("bla://", SFTPAdapter())
 
         # We want to use a non-validating adapter for any requests which are
         # deemed insecure.
