@@ -276,8 +276,7 @@ class SFTPAdapter(BaseAdapter):
                 return resp
 
             modified = email.utils.formatdate(stats.st_mtime, usegmt=True)
-            # todo can we use mimetypes as in file: adapter
-            content_type = "text/plain"
+            content_type = mimetypes.guess_type(path)[0] or "text/plain"
             resp.headers = CaseInsensitiveDict({
                 "Content-Type": content_type,
                 "Content-Length": stats.st_size,
@@ -485,7 +484,7 @@ def get_file_content(url, comes_from=None, session=None):
     return url, content
 
 
-_scheme_re = re.compile(r'^(http|https|file):', re.I)
+_scheme_re = re.compile(r'^(http|https|file|bla):', re.I)
 _url_slash_drive_re = re.compile(r'/*([a-z])\|', re.I)
 
 
@@ -494,7 +493,7 @@ def is_url(name):
     if ':' not in name:
         return False
     scheme = name.split(':', 1)[0].lower()
-    return scheme in ['http', 'https', 'file', 'ftp'] + vcs.all_schemes
+    return scheme in ['http', 'https', 'file', 'ftp', 'bla'] + vcs.all_schemes
 
 
 def url_to_path(url):
