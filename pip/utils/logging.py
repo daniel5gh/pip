@@ -37,9 +37,22 @@ def indent_log(num=2):
     finally:
         _log_state.indentation -= num
 
+# Traceback (most recent call last):
+# File "/usr/lib/python2.7/logging/__init__.py", line 846, in emit
+# msg = self.format(record)
+# File "pip/utils/logging.py", line 106, in format
+# msg = logging.StreamHandler.format(self, record)
+# File "/usr/lib/python2.7/logging/__init__.py", line 723, in format
+# return fmt.format(record)
+# File "pip/utils/logging.py", line 55, in format
+# for line in formatted.splitlines(True)
+# File "pip/utils/logging.py", line 42, in get_indentation
+# return _log_state.indentation
+# AttributeError: 'thread._local' object has no attribute 'indentation'
 
+# Got the above trace when using paramiko, so lets getattr
 def get_indentation():
-    return _log_state.indentation
+    return getattr(_log_state, 'indentation', 0)
 
 
 class IndentingFormatter(logging.Formatter):
