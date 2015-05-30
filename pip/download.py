@@ -553,7 +553,6 @@ def is_url(name):
     if ':' not in name:
         return False
     scheme = name.split(':', 1)[0].lower()
-    # note sftp is also defined in vcs.all_schemes at the moment
     return scheme in ['http', 'https', 'file', 'ftp', 'sftp'] + vcs.all_schemes
 
 
