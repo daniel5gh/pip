@@ -244,10 +244,6 @@ class SFTPAdapter(BaseAdapter):
         path = parts.path
 
         import paramiko, stat
-        paramiko.util.log_to_file('/tmp/paramiko.log')
-
-        transport = paramiko.Transport((host, port))
-        transport.start_client()
 
         if 'authorization' not in request.headers:
             raise RuntimeError("Please specify username@host")
@@ -257,6 +253,9 @@ class SFTPAdapter(BaseAdapter):
         auth = request.headers['authorization'].split()
         assert auth[0] == 'Basic'
         username, password = auth[1].decode('base64').split(':')
+
+        transport = paramiko.Transport((host, port))
+        transport.start_client()
 
         agent = paramiko.Agent()
         agent_keys = agent.get_keys()
@@ -273,7 +272,6 @@ class SFTPAdapter(BaseAdapter):
 
         if transport.is_authenticated():
             transport.open_session()
-            print transport
         else:
             transport.auth_password(username=username, password=password)
 
