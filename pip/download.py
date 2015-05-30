@@ -247,6 +247,7 @@ class SFTPAdapter(BaseAdapter):
         paramiko.util.log_to_file('/tmp/paramiko.log')
 
         transport = paramiko.Transport((host, port))
+        transport.start_client()
 
         if 'authorization' not in request.headers:
             raise RuntimeError("Please specify username@host")
@@ -257,7 +258,22 @@ class SFTPAdapter(BaseAdapter):
         assert auth[0] == 'Basic'
         username, password = auth[1].decode('base64').split(':')
 
-        transport.connect(username=username, password=password)
+        agent = paramiko.Agent()
+        agent_keys = agent.get_keys()
+        if len(agent_keys) == 0 and not password:
+            raise RuntimeError("Either load a key into your agent or provide password on url")
+
+        for key in agent_keys:
+            logging.debug('trying ssh key {}'.format(key.get_fingerprint().encode('hex')))
+            transport.auth_publickey(username, key)
+            break
+
+        if transport.is_authenticated():
+            transport.open_session()
+            print transport
+        else:
+            transport.auth_password(username=username, password=password)
+
         sftp = paramiko.SFTPClient.from_transport(transport)
 
         resp = Response()
@@ -284,7 +300,7 @@ class SFTPAdapter(BaseAdapter):
             })
 
             resp.raw = sftp.file(path)
-            resp.close = resp.raw.close
+            resp.close = transport.close
             return resp
 
     def close(self):
