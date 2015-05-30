@@ -233,7 +233,7 @@ class SFTPAdapter(BaseAdapter):
     uses SFTP as a transport.  The requests package is made to do
     HTTP requests and so we disguise ourselves as a HTTP transport by
     accepting a HTTP request, using it's url and headers to make a
-    SFTP request and having the result jammed into a HTTP response
+    SFTP request and having the result jammed back into a HTTP response
     object.  When a file is not found or the path is a directory, a
     404 status code is set on the response.  The Content-Type is
     guessed based on the filename.
@@ -288,7 +288,7 @@ class SFTPAdapter(BaseAdapter):
             raise RuntimeError(
                 "Either load a key into your agent or provide password on url")
 
-        # see of any of the loaded keys lets us successfully authenticate
+        # see if any of the loaded keys lets us successfully authenticate
         for key in agent_keys:
             logging.debug('trying ssh key {}'.format(
                 key.get_fingerprint().encode('hex')))
@@ -332,7 +332,7 @@ class SFTPAdapter(BaseAdapter):
 
             # the HTTP Content-Type is guessed based on file name
             content_type = mimetypes.guess_type(path)[0] or "text/plain"
-            # fill some Content-Length and Last-Modified with information
+            # fill the Content-Length and Last-Modified with information
             # acquired with sftp.stat
             modified = email.utils.formatdate(stats.st_mtime, usegmt=True)
             resp.headers = CaseInsensitiveDict({
