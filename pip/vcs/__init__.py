@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class VcsSupport(object):
     _registry = {}
-    schemes = ['ssh', 'git', 'hg', 'bzr', 'sftp', 'svn']
+    schemes = ['ssh', 'git', 'hg', 'bzr', 'svn']
 
     def __init__(self):
         # Register more schemes with urlparse for various version control

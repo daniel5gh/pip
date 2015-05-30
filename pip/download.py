@@ -440,7 +440,7 @@ class PipSession(requests.Session):
         self.mount("file://", LocalFSAdapter())
 
         # Enable sftp:// urls
-        self.mount("bla://", SFTPAdapter())
+        self.mount("sftp://", SFTPAdapter())
 
         # We want to use a non-validating adapter for any requests which are
         # deemed insecure.
@@ -500,7 +500,7 @@ def get_file_content(url, comes_from=None, session=None):
     return url, content
 
 
-_scheme_re = re.compile(r'^(http|https|file|bla):', re.I)
+_scheme_re = re.compile(r'^(http|https|file|sftp):', re.I)
 _url_slash_drive_re = re.compile(r'/*([a-z])\|', re.I)
 
 
@@ -509,7 +509,8 @@ def is_url(name):
     if ':' not in name:
         return False
     scheme = name.split(':', 1)[0].lower()
-    return scheme in ['http', 'https', 'file', 'ftp', 'bla'] + vcs.all_schemes
+    # note sftp is also defined in vcs.all_schemes at the moment
+    return scheme in ['http', 'https', 'file', 'ftp', 'sftp'] + vcs.all_schemes
 
 
 def url_to_path(url):

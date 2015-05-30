@@ -41,7 +41,7 @@ __all__ = ['FormatControl', 'fmt_ctl_handle_mutual_exclude', 'PackageFinder']
 SECURE_ORIGINS = [
     # protocol, hostname, port
     ("https", "*", "*"),
-    ("bla", "*", "*"),
+    ("sftp", "*", "*"),
     ("*", "localhost", "*"),
     ("*", "127.0.0.0/8", "*"),
     ("*", "::1/128", "*"),
@@ -913,7 +913,7 @@ class HTMLPage(object):
                     url += '/'
                 url = urllib_parse.urljoin(url, 'index.html')
                 logger.debug(' file: URL is directory, getting %s', url)
-            elif (scheme == 'bla' and
+            elif (scheme == 'sftp' and
                     path.endswith('/')):
                 url += 'index.html'
                 logger.debug(' sftp: URL is directory (it ends with /), getting %s', url)
@@ -1011,15 +1011,9 @@ class HTMLPage(object):
         for anchor in self.parsed.findall(".//a"):
             if anchor.get("href"):
                 href = anchor.get("href")
-                # TODO: hacky hacky urljoin doesn't like bla://
-                url = self.base_url
-                if url.startswith('bla://'):
-                    url = url.replace('bla://', 'sftp://')
                 url = self.clean_link(
-                    urllib_parse.urljoin(url, href)
+                    urllib_parse.urljoin(self.base_url, href)
                 )
-                if url.startswith('sftp://'):
-                    url = url.replace('sftp://', 'bla://')
 
                 # Determine if this link is internal. If that distinction
                 #   doesn't make sense in this context, then we don't make
