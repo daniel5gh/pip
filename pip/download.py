@@ -265,8 +265,11 @@ class SFTPAdapter(BaseAdapter):
 
         for key in agent_keys:
             logging.debug('trying ssh key {}'.format(key.get_fingerprint().encode('hex')))
-            transport.auth_publickey(username, key)
-            break
+            try:
+                transport.auth_publickey(username, key)
+                break
+            except paramiko.SSHException:
+                logging.debug('auth with key {} failed'.format(key.get_fingerprint().encode('hex')))
 
         if transport.is_authenticated():
             transport.open_session()
