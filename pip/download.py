@@ -229,6 +229,20 @@ class LocalFSAdapter(BaseAdapter):
 
 
 class SFTPAdapter(BaseAdapter):
+    """This class is an implementation of a requests BaseAdapter that
+    uses SFTP as a transport.  The requests package is made to do
+    HTTP requests and so we disguise ourselves as a HTTP transport by
+    accepting a HTTP request, using it's url and headers to make a
+    SFTP request and having the result jammed into a HTTP response
+    object.  When a file is not found or the path is a directory, a
+    404 status code is set on the response.  The Content-Type is
+    guessed based on the filename.
+    """
+
+    # Note the signature of this method does not match the signature of
+    # the base method in BaseAdapter, but it does with the signature of
+    # other adapters like the HTTPAdapter that is also derived of
+    # BaseAdapter.
     def send(self, request, stream=None, timeout=None, verify=None, cert=None,
             proxies=None):
 
@@ -239,68 +253,97 @@ class SFTPAdapter(BaseAdapter):
             port = int(port)
         else:
             host = parts.netloc
+            # when no port is provided use the default sftp port
             port = 22
 
         path = parts.path
 
+        # TODO: how to handle this requirement, I guess this should optional or included in _vendor.
         import paramiko, stat
 
+        # TODO: interactive login?
         if 'authorization' not in request.headers:
             raise RuntimeError("Please specify username@host")
 
-        # requests has already prepared the http auth, so lets get it
-        # from the HTTP Basic Authentication header
+        # requests has already prepared the http auth and there is no other
+        # method to get the auth info, so lets get it from the HTTP Basic
+        # Authentication header.
         auth = request.headers['authorization'].split()
-        assert auth[0] == 'Basic'
+
+        assert auth[0] == 'Basic', 'can only handle Basic Auth'
+        # A basic Auth header value is base64 encoded username:password
         username, password = auth[1].decode('base64').split(':')
 
+        # create the paramiko transport
         transport = paramiko.Transport((host, port))
         transport.start_client()
 
+        # create the paramiko agent which we query for SSH keys to
+        # authenticate with
         agent = paramiko.Agent()
         agent_keys = agent.get_keys()
-        if len(agent_keys) == 0 and not password:
-            raise RuntimeError("Either load a key into your agent or provide password on url")
 
+        # TODO: interactive login?
+        if len(agent_keys) == 0 and not password:
+            raise RuntimeError(
+                "Either load a key into your agent or provide password on url")
+
+        # see of any of the loaded keys lets us successfully authenticate
         for key in agent_keys:
-            logging.debug('trying ssh key {}'.format(key.get_fingerprint().encode('hex')))
+            logging.debug('trying ssh key {}'.format(
+                key.get_fingerprint().encode('hex')))
             try:
                 transport.auth_publickey(username, key)
+                # we have success, don't check the rest
                 break
             except paramiko.SSHException:
-                logging.debug('auth with key {} failed'.format(key.get_fingerprint().encode('hex')))
+                logging.debug('auth with key {} failed'.format(
+                    key.get_fingerprint().encode('hex')))
 
+        # if we are authenticated, a SSH key was used, if not then we use
+        # username and password
         if transport.is_authenticated():
             transport.open_session()
         else:
             transport.auth_password(username=username, password=password)
 
+        # create a SFTP client on the now authenticated transport
         sftp = paramiko.SFTPClient.from_transport(transport)
 
+        # create a requests Response object in which we will jam our
+        # SFTP results.
         resp = Response()
         resp.status_code = 200
         resp.url = request.url
 
         try:
+            # sftp.stat is like plain old os.stat
             stats = sftp.stat(path)
         except OSError as exc:
             resp.status_code = 404
             resp.raw = exc
         else:
+            # in the case of a directory let the response have a
+            # 404 status code.
             if stat.S_ISDIR(stats.st_mode):
                 resp.status_code = 404
                 resp.raw = '`{}` is a directory'.format(path)
                 return resp
 
-            modified = email.utils.formatdate(stats.st_mtime, usegmt=True)
+            # the HTTP Content-Type is guessed based on file name
             content_type = mimetypes.guess_type(path)[0] or "text/plain"
+            # fill some Content-Length and Last-Modified with information
+            # acquired with sftp.stat
+            modified = email.utils.formatdate(stats.st_mtime, usegmt=True)
             resp.headers = CaseInsensitiveDict({
                 "Content-Type": content_type,
                 "Content-Length": stats.st_size,
                 "Last-Modified": modified,
             })
 
+            # sftp.file returns a file like object
             resp.raw = sftp.file(path)
+            # TODO: do we let requests close the transport or rhe file?
             resp.close = transport.close
             return resp
 
